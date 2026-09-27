@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TRAVORA — Flight, Hotel & Holiday Tour Bookings | India's Leading Travel Portal</title>
+  <meta name="description" content="Book cheap domestic and international flights, luxury hotels, and dynamic tour packages across 802 Indian districts. Zero convenience fees with TRAVORA Prime." />
+  <meta name="keywords" content="flights, hotels, holiday packages, tours, travel portal, Yatra, India travel, cheap flights, Goa tours, dynamic itinerary" />
+  <meta name="author" content="TRAVORA Technologies" />
+  <link rel="icon" type="image/png" href="./static/assets/logo/travora_emblem.png" />
+
+  <!-- GitHub Pages subpath auto-resolution -->
+  <script>
+    if (window.location.hostname.endsWith('github.io')) {
+      const parts = window.location.pathname.split('/').filter(Boolean);
+      if (parts.length > 0) {
+        window.__TRAVORA_REPO__ = parts[0];
+        document.addEventListener('error', function(e) {
+          if (e.target && e.target.tagName === 'IMG' && e.target.src) {
+            const url = new URL(e.target.src);
+            if (url.pathname.startsWith('/static/') && !url.pathname.startsWith('/' + window.__TRAVORA_REPO__ + '/')) {
+              e.target.src = '/' + window.__TRAVORA_REPO__ + url.pathname;
+            }
+          }
+        }, true);
+      }
+    }
+  </script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Rozha+One&family=Tiro+Devanagari+Hindi:ital@0;1&family=Yatra+One&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            travora: {
+              burgundy: '#810B38',
+              cream: '#F1E2D1',
+              sand: '#DCC3AA',
+              wine: '#541A1A',
+              50: '#FDFBF7',
+              100: '#F1E2D1',
+              200: '#E6D2BD',
+              300: '#DCC3AA',
+              400: '#B04B67',
+              500: '#810B38',
+              600: '#700930',
+              700: '#541A1A',
+              800: '#3D1212',
+              900: '#2A0C0C',
+              950: '#1A0707'
+            },
+            darkred: {
+              500: '#810B38',
+              700: '#541A1A'
+            },
+            brand: {
+              500: '#810B38',
+              700: '#541A1A'
+            },
+            yatra: {
+              500: '#810B38',
+              700: '#541A1A'
+            }
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Custom Design Tokens & Styles -->
+  <link rel="stylesheet" href="./static/css/style.css" />
+</head>
+<body class="antialiased selection:bg-red-500 selection:text-white">
+  
+  <!-- Single Page Application Mount Root: Directly renders TRAVORA Desktop Web Portal -->
+  <div id="app-root" class="relative"></div>
+
+  <!-- Main ES Module Bootstrap -->
+  <script type="module" src="./static/js/app.js"></script>
+
+</body>
+</html>

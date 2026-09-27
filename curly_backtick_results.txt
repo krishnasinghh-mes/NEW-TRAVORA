@@ -1,0 +1,52 @@
+static/js\api.js:61 -> deleteUser(userId) { return this.delete(`/users/${userId}`); },
+static/js\api.js:65 -> getDestinationDetail(id) { return this.get(`/destinations/${id}`); },
+static/js\api.js:68 -> getDistrictDetail(id) { return this.get(`/districts/${id}`); },
+static/js\api.js:75 -> deletePackage(packageId) { return this.delete(`/operator/packages/${packageId}`); },
+static/js\api.js:81 -> getTourDetail(id) { return this.get(`/tours/${id}`); },
+static/js\api.js:82 -> deleteTour(tourId) { return this.delete(`/tours/${tourId}`); },
+static/js\api.js:85 -> deleteTourItem(tourId, itemId) { return this.delete(`/tours/${tourId}/items/${itemId}`); },
+static/js\api.js:121 -> getCrudTable(table) { return this.get(`/crud/${table}`); },
+static/js\api.js:122 -> createCrudRecord(table, data) { return this.post(`/crud/${table}`, data); },
+static/js\api.js:123 -> updateCrudRecord(table, id, data) { return this.put(`/crud/${table}/${id}`, data); },
+static/js\api.js:124 -> deleteCrudRecord(table, id) { return this.delete(`/crud/${table}/${id}`); }
+static/js\app.js:716 -> subtitle: `Custom ${itemType.toUpperCase()} on Day ${dayNumber}`,
+static/js\app.js:986 -> store.addToast(`Booking Confirmed! Code: ${res.booking_code}`, 'success', 6000);
+static/js\store.js:127 -> this.addToast(`Welcome, ${user.name}! Signed in as ${user.role.toUpperCase()}`, 'success');
+static/js\components\auth_view.js:395 -> ${authMode === 'login' ? `Welcome to ${currentRole.name}` : (authMode === 'signup' ? 'Create Your Account' : 'Reset Account Password')}
+static/js\components\auth_view.js:555 -> }` : ''}
+static/js\components\auth_view.js:638 -> }` : ''}
+static/js\components\auth_view.js:654 -> }` : ''}
+static/js\components\auth_view.js:673 -> <span>${authMode === 'login' ? `Sign In to ${currentRole.name}` : (authMode === 'signup' ? 'Complete Registration' : 'Save New Password')}</span>
+static/js\components\itinerary_view.js:692 -> if (totalDelta) totalDelta.innerText = `+Rs ${(res.total_price_delta || 2000).toLocaleString('en-IN')}`;
+static/js\components\itinerary_view.js:693 -> if (transitDelta) transitDelta.innerText = `+Rs ${(res.transport_impact || 1200).toLocaleString('en-IN')}`;
+static/js\components\itinerary_view.js:694 -> if (activityDelta) activityDelta.innerText = `+Rs ${(res.activity_impact || 500).toLocaleString('en-IN')}`;
+static/js\components\itinerary_view.js:695 -> if (mealDelta) mealDelta.innerText = `+Rs ${(res.meal_impact || 300).toLocaleString('en-IN')}`;
+static/js\components\landing.js:833 -> }` : ''}
+static/js\components\landing.js:926 -> }` : ''}
+static/js\components\landing.js:1979 -> store.addToast(`Special Fare applied: ${fare.toUpperCase()}`, 'info');
+static/js\components\landing.js:1991 -> store.addToast(`Swapped origin & destination: ${fromInput.value} ⇄ ${toInput.value}`, 'info');
+static/js\components\landing.js:2000 -> store.addToast(`Destination set to ${cityFull}`, 'success');
+static/js\components\landing.js:2018 -> store.addToast(`Loaded cheapest flights for ${fromCity} ➔ ${toCity}`, 'success');
+static/js\components\landing.js:2076 -> store.addToast(`Found 5 live deals from ${fromCity} to ${toCity}`, 'success');
+static/js\components\landing.js:2091 -> store.addToast(`Selected date ${date} with fare ₹${fare.toLocaleString('en-IN')}`, 'info');
+static/js\components\landing.js:2105 -> title: `${airline} Flight ${flightCode}`,
+static/js\components\landing.js:2110 -> route: `${window.landingFromCity || 'New Delhi (DEL)'} to ${window.landingToCity || 'Goa (GOI / GOX)'}`,
+static/js\components\landing.js:2125 -> store.addToast(`Coupon code: ${code}`, 'info');
+static/js\components\landing.js:2128 -> store.addToast(`Coupon code: ${code}`, 'info');
+static/js\components\login_popup.js:86 -> ${authMode === 'signup' ? '✦ Create My Account' : `→ Sign In as ${roles.find(r=>r.id===selectedRole)?.label || 'User'}`}
+static/js\components\login_popup.js:226 -> if (btn) { btn.disabled = false; btn.textContent = `→ Sign In as ${role}`; }
+static/js\components\navbar.js:900 -> store.addToast(`Selected destination: ${districtName}`, 'info', 2500);
+static/js\components\operator_dashboard.js:361 -> }` : ''}
+static/js\components\profile_modal.js:344 -> <span class="font-mono font-black text-xs text-slate-900 dark:text-white">${t.code || `TRV-BK-${9020 + idx}`}</span>
+static/js\components\profile_modal.js:367 -> onclick="window.closeProfileModal(); window.openBookingReceiptModal('${t.code || `TRV-BK-${9020 + idx}`}')"
+static/js\components\profile_modal.js:399 -> }`}
+static/js\components\trip_planner.js:243 -> ${window.plannerState.selectedDistrict && window.plannerState.selectedDistrict.terrain ? `${window.plannerState.selectedDistrict.terrain} - Season: ${window.plannerState.selectedDistrict.popular_season || 'Year-round'}` : 'Dynamic AI routing with real-time on-ground tour operator pairing'}
+static/js\components\trip_planner.js:347 -> ].map(st => `<option value="${st}" ${window.plannerState.districtStateFilter === st ? 'selected' : ''}>${st}</option>}`).join('')}
+static/js\components\trip_planner.js:1157 -> d.tourist_places.forEach(p => placesList.push({ name: p, category: "Sightseeing", icon: "camera", desc: `Top-rated attraction in ${d.name}` }));
+static/js\components\trip_planner.js:1160 -> d.heritage_places.forEach(p => placesList.push({ name: p, category: "Heritage", icon: "shield", desc: `Historic monument in ${d.name}` }));
+static/js\components\trip_planner.js:1163 -> d.religious_places.forEach(p => placesList.push({ name: p, category: "Spiritual", icon: "flame", desc: `Spiritual site in ${d.name}` }));
+static/js\components\trip_planner.js:1166 -> d.adventure_activities.forEach(p => placesList.push({ name: p, category: "Adventure", icon: "compass", desc: `Adventure activity in ${d.name}` }));
+static/js\components\trip_planner.js:1341 -> store.addToast(`Reset to AI Top Recommended Operator: ${topOp.name}`, 'info');
+static/js\components\trip_tracker.js:176 -> ${state.tours.map(t => `<option value="${t.id}" ${t.id === tour.id ? 'selected' : ''}>${t.title.slice(0, 26)}...</option>}`).join('')}
+static/js\components\trip_tracker.js:460 -> ${it.cost ? `Rs ${it.cost}` : 'Included'}
+static/js\components\trip_tracker.js:594 -> store.addToast(`Focused on Milestone #${idx + 1}`, 'info');

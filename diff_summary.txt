@@ -1,0 +1,1335 @@
+
+
+=== DIFF for app.js ===
+--- bak
++++ curr
+@@ -454,4 +454,48 @@
+ // ==============================================================================
+ 
++window.openPhase = async function (phase) {
++  const phaseViewMap = {
++    traveler: 'landing',
++    operator: 'operator_dash',
++    business_operator: 'business_operator',
++    admin: 'admin_dash'
++  };
++  const targetView = phaseViewMap[phase] || 'landing';
++  const state = store.getState();
++
++  // If user is not authenticated:
++  if (!state.isAuthenticated) {
++    store.setState({
++      isLoginPopupOpen: true,
++      authMode: 'login',
++      authRole: phase
++    });
++    const roleName = phase === 'business_operator' ? 'Corporate' : phase.replace('_', ' ').toUpperCase();
++    store.addToast(`Please sign in to access the ${roleName} portal.`, 'info', 3000);
++    return;
++  }
++
++  // If user is already authenticated:
++  const demoUsers = {
++    traveler: { name: 'Krishna Singh', email: 'traveler@travora.demo', role: 'traveler', id: 1 },
++    operator: { name: 'Aarav Mehta', email: 'operator@travora.demo', role: 'operator', id: 22, company_name: 'Goa Coastal Expeditions & Watersports' },
++    business_operator: { name: 'Vikram Oberoi', email: 'corporate@travora.demo', role: 'business_operator', id: 23, company_name: 'Tata Enterprise Corporate Travel' },
++    admin: { name: 'Panchdyuti Admin', email: 'admin@travora.demo', role: 'admin', id: 24, company_name: 'TRAVORA Platform Headquarters' }
++  };
++
++  const nextUser = demoUsers[phase] || { ...state.user, role: phase };
++  localStorage.setItem('travora_user', JSON.stringify(nextUser));
++
++  store.setState({
++    user: nextUser,
++    activeRole: phase,
++    currentView: targetView
++  });
++
++  const roleName = phase === 'business_operator' ? 'Corporate' : phase.replace('_', ' ').toUpperCase();
++  store.addToast(`Switched to ${roleName} phase`, 'success', 2500);
++  await window.navigateView(targetView);
++};
++
+ window.navigateView = async function (view, payload = {}) {
+   store.navigate(view, payload);
+@@ -462,5 +506,7 @@
+     const user = state.user;
+     const userId = user ? user.id : null;
+-    const isOperator = user && user.role === 'operator';
++    const isOperator = state.activeRole === 'operator' || (user && user.role === 'operator') || (view && view.startsWith('operator'));
++    const isBusiness = state.activeRole === 'business_operator' || (user && user.role === 'business_operator') || view === 'business_operator';
++    const isAdmin = state.activeRole === 'admin' || (user && user.role === 'admin') || view === 'admin_dash';
+ 
+     const tourId = payload.tour_id || state.currentTourId;
+@@ -468,5 +514,5 @@
+     const [tourDetail, operatorData, operatorAlerts, tours, notifications] = await Promise.all([
+       tourId ? api.getTourDetail(tourId).catch(() => null) : Promise.resolve(null),
+-      isOperator ? api.getOperatorDashboard().catch(() => null) : Promise.resolve(null),
++      isOperator ? api.getOperatorDashboard(user ? user.id : undefined).catch(() => null) : Promise.resolve(null),
+       isOperator ? api.getOperatorAlerts().catch(() => []) : Promise.resolve([]),
+       isOperator
+@@ -476,5 +522,5 @@
+     ]);
+ 
+-    if (view === 'admin_dash') {
++    if (view === 'admin_dash' || isAdmin) {
+       const [metrics, events, logs] = await Promise.all([
+         api.getAdminMetrics().catch(() => null),
+@@ -483,5 +529,5 @@
+       ]);
+       store.setState({ adminMetrics: metrics, adminEvents: events, adminAuditLogs: logs });
+-    } else if (view === 'business_operator') {
++    } else if (view === 'business_operator' || isBusiness) {
+       const bookings = await api.getCorporateBookings().catch(() => []);
+       store.setState({ corporateBookings: bookings });
+@@ -1190,5 +1236,5 @@
+       const toastsHtml = `
+         <div id="toast-container" class="fixed top-6 right-4 z-[300] flex flex-col space-y-2 pointer-events-none">
+-          ${state.toasts.map(t => }`
++          ${state.toasts.map(t => `
+             <div class="toast-item pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center space-x-2 ${t.type === 'critical' ? 'bg-[#810B38] text-white border-[#541A1A]' :
+           t.type === 'warning' ? 'bg-amber-500 text-slate-950 border-amber-600' :
+@@ -1219,5 +1265,5 @@
+         ${renderAuthView()}
+         <div id="toast-container" class="fixed top-6 right-4 z-50 flex flex-col space-y-2 pointer-events-none">
+-          ${state.toasts.map(t => }`
++          ${state.toasts.map(t => `
+             <div class="toast-item pointer-events-auto px-4 py-3 rounded-2xl shadow-xl border text-xs font-bold flex items-center space-x-2 ${t.type === 'critical' ? 'bg-[#810B38] text-white border-[#541A1A]' :
+           t.type === 'warning' ? 'bg-amber-500 text-slate-950 border-amber-600' :
+@@ -1311,4 +1357,5 @@
+       ${state.isOperatorRegisterModalOpen ? renderOperatorRegistrationModal() : ''}
+       ${state.selectedOperatorForModal ? renderOperatorDetailModal(state.selectedOperatorForModal) : ''}
++      ${state.isLoginPopupOpen ? renderLoginPopup() : ''}
+       ${toastsHtml}
+     `;
+@@ -1318,5 +1365,13 @@
+     }
+ 
+-    if (state.currentView === 'itinerary') {
++    if (state.currentView === 'landing') {
++      setTimeout(() => {
++        const v = document.getElementById('hero-bg-video');
++        if (v) {
++          v.muted = true;
++          v.play().catch(() => {});
++        }
++      }, 100);
++    } else if (state.currentView === 'itinerary') {
+       setTimeout(() => { initLeafletMap(state.currentTour); }, 150);
+     } else if (state.currentView === 'tracker') {
+@@ -1397,4 +1452,35 @@
+ }
+ 
++// Global click interceptor: If traveller clicks anywhere on website and is not logged in, ask to login first
++document.addEventListener('click', function (e) {
++  const state = store.getState();
++  if (state.isAuthenticated) return; // Already logged in: all features and clicks work normally!
++
++  // Allow clicking on splash intro overlay (to dismiss/explore)
++  if (e.target.closest('#auth-splash-overlay')) return;
++
++  // Allow clicking inside the login popup modal
++  if (e.target.closest('#login-popup-overlay')) return;
++
++  // Allow clicking toasts
++  if (e.target.closest('#toast-container')) return;
++
++  // Check if clicking on explicit phase navigation buttons
++  const phaseBtn = e.target.closest('[data-phase-btn]');
++  if (phaseBtn) {
++    const phase = phaseBtn.getAttribute('data-phase-btn');
++    e.preventDefault();
++    e.stopPropagation();
++    window.openPhase(phase);
++    return;
++  }
++
++  // Any other click on website: ask traveller to login first!
++  e.preventDefault();
++  e.stopPropagation();
++  store.setState({ isLoginPopupOpen: true, authMode: 'login', authRole: 'traveler' });
++  store.addToast('Please login first to continue exploring TRAVORA!', 'info', 3000);
++}, true);
++
+ document.addEventListener('DOMContentLoaded', bootstrap);
+ 
+
+
+=== DIFF for add_experience_modal.js ===
+
+
+=== DIFF for admin_dashboard.js ===
+--- bak
++++ curr
+@@ -134,7 +134,7 @@
+ 
+           <div class="space-y-3 max-h-96 overflow-y-auto pr-1">
+-            ${events.length === 0 ? }`
++            ${events.length === 0 ? `
+               <div class="text-center py-8 text-xs text-slate-400">No events logged yet</div>
+-            ` : events.map(evt => }`
++            ` : events.map(evt => `
+               <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800/80 space-y-1 text-xs">
+                 <div class="flex items-center justify-between">
+@@ -171,5 +171,5 @@
+ 
+           <div class="space-y-3 max-h-96 overflow-y-auto pr-1">
+-            ${auditLogs.length === 0 ? }`
++            ${auditLogs.length === 0 ? `
+               <div class="text-center py-8 text-xs text-slate-400">No audit records recorded yet</div>
+             ` : auditLogs.map(log => `
+
+
+=== DIFF for alert_center.js ===
+--- bak
++++ curr
+@@ -67,5 +67,5 @@
+ 
+       <!-- ALERTS LIST OR EMPTY STATE -->
+-      ${displayedAlerts.length === 0 ? }`
++      ${displayedAlerts.length === 0 ? `
+         <div class="p-12 surface-card rounded-3xl border border-dashed border-slate-300 dark:border-slate-700 text-center space-y-4">
+           <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+@@ -83,5 +83,5 @@
+           </div>
+         </div>
+-      ` : }`
++      ` : `
+         <div class="space-y-4">
+           ${displayedAlerts.map(a => `
+@@ -131,5 +131,5 @@
+                   </button>
+                   
+-                  ${a.status !== 'resolved' ? }`
++                  ${a.status !== 'resolved' ? `
+                     <button 
+                       onclick="window.openDisruptionModal(${a.tour_id || 1}, ${a.id})" 
+@@ -138,5 +138,5 @@
+                       <span>Review & Resolve</span>
+                     </button>
+-                  ` : }`
++                  ` : `
+                     <div class="flex items-center space-x-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                       <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+
+
+=== DIFF for auth_view.js ===
+--- bak
++++ curr
+@@ -88,5 +88,5 @@
+          CINEMATIC BRAND SPLASH TRANSITION WITH USER'S 3D EMBLEM
+          =================================================================== -->
+-    ${showSplash ? }`
++    ${showSplash ? `
+       <div id="auth-splash-overlay" onclick="window.dismissSplashIntro()" class="cursor-pointer select-none">
+         
+@@ -393,5 +393,5 @@
+                   </div>
+                   <h1 class="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
+-                    ${authMode === 'login' ? }`Welcome to ${currentRole.name}` : (authMode === 'signup' ? 'Create Your Account' : 'Reset Account Password')}
++                    ${authMode === 'login' ? `Welcome to ${currentRole.name}` : (authMode === 'signup' ? 'Create Your Account' : 'Reset Account Password')}
+                   </h1>
+                   <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+@@ -411,5 +411,5 @@
+ 
+               <!-- 4-ROLE SELECTOR CAPSULES -->
+-              ${authMode !== 'forgot' ? }`
++              ${authMode !== 'forgot' ? `
+                 <div class="space-y-1.5">
+                   <div class="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400">
+@@ -493,5 +493,5 @@
+                   </button>
+                 </div>
+-              ` : }`
++              ` : `
+                 <!-- FORGOT PASSWORD BANNER -->
+                 <div class="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 text-xs flex items-center space-x-2">
+@@ -506,5 +506,5 @@
+               <form id="auth-main-form" onsubmit="window.handleAuthFormSubmit(event)" class="space-y-3.5 text-xs">
+                 
+-                ${authMode === 'signup' ? }`
++                ${authMode === 'signup' ? `
+                   <div class="space-y-1">
+                     <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px]">Full Name</label>
+@@ -542,5 +542,5 @@
+ 
+                 <!-- Password Field -->
+-                ${authMode !== 'forgot' ? }`
++                ${authMode !== 'forgot' ? `
+                   <div class="space-y-1">
+                     <div class="flex items-center justify-between">
+@@ -573,5 +573,5 @@
+                     </div>
+                   </div>
+-                }` : `
++                ` : `
+                   <!-- Reset Password Mode Fields -->
+                   <div class="space-y-1">
+@@ -607,5 +607,5 @@
+ 
+                 <!-- Extra Signup Fields depending on role -->
+-                ${authMode === 'signup' ? }`
++                ${authMode === 'signup' ? `
+                   <div class="space-y-1">
+                     <label class="block font-bold text-slate-700 dark:text-slate-300 text-[11px]">Mobile Number (for SMS & WhatsApp E-Tickets)</label>
+@@ -656,5 +656,5 @@
+ 
+                 <!-- Remember Me & Terms Checkbox for Login -->
+-                ${authMode === 'login' ? }`
++                ${authMode === 'login' ? `
+                   <div class="flex items-center justify-between pt-1">
+                     <label class="flex items-center space-x-2 cursor-pointer text-slate-600 dark:text-slate-400 text-[11px]">
+@@ -671,9 +671,9 @@
+                     class="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#ea2330] via-[#ea2330] to-[#d91b28] hover:from-[#d91b28] hover:to-[#b91c1c] text-white font-black text-sm shadow-xl shadow-red-500/25 transition transform hover:-translate-y-0.5 flex items-center justify-center space-x-2">
+                     <i data-lucide="${authMode === 'login' ? 'log-in' : (authMode === 'signup' ? 'user-plus' : 'check-circle')}" class="w-4 h-4"></i>
+-                    <span>${authMode === 'login' ? }`Sign In to ${currentRole.name}` : (authMode === 'signup' ? 'Complete Registration' : 'Save New Password')}</span>
++                    <span>${authMode === 'login' ? `Sign In to ${currentRole.name}` : (authMode === 'signup' ? 'Complete Registration' : 'Save New Password')}</span>
+                   </button>
+                 </div>
+ 
+-                ${authMode === 'forgot' ? }`
++                ${authMode === 'forgot' ? `
+                   <div class="text-center pt-2">
+                     <button 
+
+
+=== DIFF for booking_modal.js ===
+--- bak
++++ curr
+@@ -100,5 +100,5 @@
+               <span class="font-semibold text-slate-800 dark:text-slate-200">Rs ${receipt.service_fee.toLocaleString('en-IN')}</span>
+             </div>
+-            ${receipt.discount_amount > 0 ? }`
++            ${receipt.discount_amount > 0 ? `
+               <div class="flex justify-between text-emerald-600 dark:text-emerald-400 font-semibold">
+                 <span>Festival Promotion Discount</span>
+
+
+=== DIFF for business_operator.js ===
+
+
+=== DIFF for disruption_hub.js ===
+--- bak
++++ curr
+@@ -138,5 +138,5 @@
+ 
+           <div class="space-y-3">
+-            ${alternatives.map((alt, idx) => }`
++            ${alternatives.map((alt, idx) => `
+               <div class="p-4 sm:p-5 rounded-2xl border transition ${alt.is_recommended ? 'border-teal-500 bg-teal-50/20 dark:bg-teal-950/20 shadow-lg shadow-teal-500/10' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900'} space-y-3">
+                 
+
+
+=== DIFF for feedback_modal.js ===
+--- bak
++++ curr
+@@ -51,5 +51,5 @@
+         </div>
+ 
+-        ${mode === 'platform' ? }`
++        ${mode === 'platform' ? `
+           <!-- A. PLATFORM FEEDBACK FORM -->
+           <form onsubmit="window.handlePlatformFeedbackSubmit(event)" class="space-y-4 text-xs">
+@@ -121,5 +121,5 @@
+             </button>
+           </form>
+-        ` : }`
++        ` : `
+           <!-- B. OPERATOR FEEDBACK FORM -->
+           ${!isTripCompleted ? `
+@@ -139,5 +139,5 @@
+               </button>
+             </div>
+-          }` : `
++          ` : `
+             <form onsubmit="window.handleOperatorReviewSubmit(event)" class="space-y-4 text-xs">
+               <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px]">
+
+
+=== DIFF for itinerary_view.js ===
+--- bak
++++ curr
+@@ -55,5 +55,5 @@
+ 
+           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+-            ${destinations.map(d => }`
++            ${destinations.map(d => `
+               <div class="surface-card rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-md group hover:border-teal-500 transition flex flex-col justify-between">
+                 <div>
+@@ -173,5 +173,5 @@
+               </div>
+ 
+-              ${tour.desired_places ? }`
++              ${tour.desired_places ? `
+                 <div class="p-3 rounded-2xl bg-teal-500/5 dark:bg-teal-950/30 border border-teal-500/20 text-xs space-y-1">
+                   <div class="font-bold text-teal-700 dark:text-teal-300 flex items-center space-x-1.5">
+@@ -184,8 +184,8 @@
+                         ${p.trim()}
+                       </span>
+-                    }`).join('')}
++                    `).join('')}
+                   </div>
+                 </div>
+-              ` : }`
++              ` : `
+                 <div class="p-3 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 text-xs space-y-1">
+                   <div class="font-bold text-slate-700 dark:text-slate-300 flex items-center space-x-1.5">
+@@ -270,5 +270,5 @@
+ 
+         <!-- CONSTRAINT TRADE-OFFS ALERT (Requirement 10) -->
+-        ${pricing.is_overbudget ? }`
++        ${pricing.is_overbudget ? `
+           <div class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-xs space-y-2">
+             <div class="flex items-center justify-between text-amber-800 dark:text-amber-200 font-bold">
+@@ -300,5 +300,5 @@
+ 
+         <!-- DISRUPTION ALERT BANNER IF ACTIVE -->
+-        ${hasDisruption ? }`
++        ${hasDisruption ? `
+           <div class="p-4 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-pulse">
+             <div class="flex items-center space-x-3">
+@@ -324,5 +324,5 @@
+ 
+         <!-- RESOLVED DISRUPTION SYNCHRONIZATION BANNER -->
+-        ${!hasDisruption && (items.some(it => it.replacement_status === 'replaced') || (tour.change_events && tour.change_events.some(ce => ce.status === 'resolved'))) ? }`
++        ${!hasDisruption && (items.some(it => it.replacement_status === 'replaced') || (tour.change_events && tour.change_events.some(ce => ce.status === 'resolved'))) ? `
+           <div class="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/60 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm">
+             <div class="flex items-center space-x-3">
+@@ -374,5 +374,5 @@
+             <h2 class="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+               <i data-lucide="clock" class="w-5 h-5 text-teal-600 dark:text-teal-400"></i>
+-              <span>${selectedDay === 'all' ? 'Complete Journey Timeline' : }`Day ${selectedDay} Schedule`}</span>
++              <span>${selectedDay === 'all' ? 'Complete Journey Timeline' : `Day ${selectedDay} Schedule`}</span>
+             </h2>
+             <div class="flex items-center space-x-2">
+
+
+=== DIFF for landing.js ===
+--- bak
++++ curr
+@@ -1,3 +1,3 @@
+-﻿import { store } from '../store.js';
++import { store } from '../store.js';
+ 
+ export function renderLanding() {
+@@ -536,5 +536,5 @@
+   return `
+     <!-- CINEMATIC LANDING SPLASH INTRO -->
+-    ${showLandingSplash ? }`
++    ${showLandingSplash ? `
+     <div id="auth-splash-overlay" onclick="window.dismissSplashIntro()" class="cursor-pointer select-none" style="z-index:9999;">
+       <div class="absolute inset-0 bg-grid-pattern opacity-20 pointer-events-none"></div>
+@@ -569,7 +569,6 @@
+           <img src="/static/assets/logo/travora_emblem.png" alt="TRAVORA" class="w-32 h-32 sm:w-36 sm:h-36 object-contain relative z-10" style="filter:drop-shadow(0 12px 40px rgba(129,11,56,0.90));"/>
+         </div>
+-        <!-- Full logo + tagline -->
++        <!-- Tagline -->
+         <div class="splash-brand-title space-y-3">
+-          <img src="/static/assets/logo/travora_logo_horizontal.png" alt="TRAVORA" class="h-16 sm:h-20 w-auto object-contain mx-auto" style="filter:brightness(0) invert(1) drop-shadow(0 2px 20px rgba(241,226,209,0.6));"/>
+           <p class="text-sm font-bold tracking-widest" style="color:rgba(220,195,170,0.9);letter-spacing:0.25em;">PLAN FREELY. TRAVEL PERSONALLY. ADAPT INSTANTLY.</p>
+         </div>
+@@ -589,19 +588,27 @@
+ 
+       <!-- ===================================================================
+-           YATRA-STYLE TOP NOTIFICATION RIBBON (DARK RED & RED ACCENTS)
++           LUXURY SUB-NAV PROMO & DISRUPTION ASSURANCE RIBBON
+            =================================================================== -->
+-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2">
+-        <div class="p-2.5 sm:p-3 rounded-2xl bg-gradient-to-r from-red-600/10 via-[#880808]/10 to-red-600/10 dark:from-[#260406] dark:via-[#5c0606]/40 dark:to-[#260406] border border-red-500/25 text-xs text-red-950 dark:text-red-200 flex flex-col sm:flex-row items-center justify-between gap-2 shadow-sm">
+-          <div class="flex items-center space-x-2.5">
+-            <span class="px-2.5 py-0.5 rounded bg-gradient-to-r from-[#ea2330] to-[#880808] text-white font-black text-[10px] uppercase tracking-wider shadow-sm">
+-              TRAVORA × YATRA PASS
++      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-2.5">
++        <div class="p-3 rounded-2xl bg-gradient-to-r from-red-600/10 via-[#810B38]/10 to-amber-600/10 dark:from-[#210408] dark:via-[#420815]/50 dark:to-[#210408] border border-red-500/25 text-xs text-red-950 dark:text-red-200 flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm backdrop-blur-md">
++          <div class="flex items-center space-x-3 flex-wrap gap-y-1">
++            <span class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#ea2330] to-[#810B38] text-white font-black text-[10.5px] uppercase tracking-wider shadow-sm flex items-center space-x-1">
++              <i data-lucide="sparkles" class="w-3 h-3 text-amber-300"></i>
++              <span>TRAVORA × YATRA PASS</span>
+             </span>
+-            <span class="font-semibold text-slate-800 dark:text-slate-200">
+-              Book Domestic Flights & Stays with <strong class="text-red-600 dark:text-red-400 font-black">Zero Convenience Fees</strong> using promo code <strong class="text-red-600 dark:text-red-400 underline decoration-red-500">FIRSTFLY</strong>
++            <span class="font-semibold text-slate-800 dark:text-slate-200 text-[12px]">
++              Book Domestic Flights & Stays with <strong class="text-red-600 dark:text-red-400 font-black">Zero Convenience Fees</strong> using promo code:
+             </span>
++            <button 
++              onclick="window.copyPromoCode('FIRSTFLY')" 
++              class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-lg bg-[#810B38] hover:bg-[#700930] text-white font-black text-[11px] tracking-wide shadow-sm hover:shadow transition transform hover:scale-105 active:scale-95 cursor-pointer"
++              title="Click to copy coupon code FIRSTFLY">
++              <span>FIRSTFLY</span>
++              <i data-lucide="copy" class="w-3 h-3 text-amber-300"></i>
++            </button>
+           </div>
+-          <div class="flex items-center space-x-3 text-[11px] font-bold text-slate-700 dark:text-slate-300">
++          <div class="flex items-center space-x-3 text-[11.5px] font-bold text-slate-700 dark:text-slate-300 shrink-0">
+             <span class="flex items-center space-x-1">
+-              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-red-600"></i>
++              <i data-lucide="shield-check" class="w-3.5 h-3.5 text-red-600 dark:text-red-400"></i>
+               <span>100% Price Match</span>
+             </span>
+@@ -611,4 +618,9 @@
+               <span>Autonomous Disruption Protection</span>
+             </span>
++            <span class="opacity-30 hidden sm:inline">|</span>
++            <span class="hidden sm:flex items-center space-x-1 text-emerald-600 dark:text-emerald-400">
++              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
++              <span>Free Rescheduling</span>
++            </span>
+           </div>
+         </div>
+@@ -620,15 +632,25 @@
+       <section class="relative">
+         
+-        <!-- Hero Background Photography (Local High-Res Generated Banner) -->
++        <!-- Hero Background Video & Photography (Red/Wine Vignette Overlay) -->
+         <div class="absolute inset-0 h-[480px] sm:h-[500px] w-full overflow-hidden pointer-events-none -z-10">
+-          <img 
+-            src="/static/assets/hero/hero_travel_banner.jpg" 
+-            alt="TRAVORA Scenic Indian Travel Landscape" 
+-            class="w-full h-full object-cover object-center brightness-[0.55] dark:brightness-[0.4] filter saturate-110"
+-          />
++          <video 
++            id="hero-bg-video"
++            autoplay 
++            loop 
++            muted 
++            playsinline 
++            poster="/static/assets/hero/hero_travel_banner.jpg"
++            class="w-full h-full object-cover object-center brightness-[0.70] dark:brightness-[0.50] filter saturate-110">
++            <source src="/static/assets/videos/login_bg.mp4" type="video/mp4">
++            <img 
++              src="/static/assets/hero/hero_travel_banner.jpg" 
++              alt="TRAVORA Scenic Indian Travel Landscape" 
++              class="w-full h-full object-cover object-center brightness-[0.55] dark:brightness-[0.4] filter saturate-110"
++            />
++          </video>
+           <!-- Dark Burgundy and Wine Vignette Gradient Overlay -->
+-          <div class="absolute inset-0 bg-gradient-to-b from-[#1A0707]/90 via-[#541A1A]/60 to-[#110306]"></div>
++          <div class="absolute inset-0 bg-gradient-to-b from-[#1A0707]/85 via-[#541A1A]/55 to-[#110306]"></div>
+           <!-- Subtle Radiant Burgundy Glow -->
+-          <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[350px] blur-3xl pointer-events-none rounded-full" style="background:rgba(129,11,56,0.28);"></div>
++          <div class="absolute -top-32 left-1/2 -translate-x-1/2 w-[700px] h-[350px] blur-3xl pointer-events-none rounded-full" style="background:rgba(129,11,56,0.30);"></div>
+         </div>
+ 
+@@ -711,5 +733,5 @@
+ 
+             <!-- TAB 1: FLIGHTS SEARCH ENGINE -->
+-            ${activeSearchTab === 'flights' ? }`
++            ${activeSearchTab === 'flights' ? `
+               <div class="space-y-4">
+                 
+@@ -884,5 +906,5 @@
+                           <div class="text-[10px] font-bold text-slate-400 uppercase">Cabin Class</div>
+                           <div class="grid grid-cols-3 gap-1.5 text-[11px] font-bold">
+-                            ${['Economy', 'Premium', 'Business'].map(cls => }`
++                            ${['Economy', 'Premium', 'Business'].map(cls => `
+                               <button 
+                                 type="button" 
+@@ -929,5 +951,5 @@
+                       ${city.name}
+                     </button>
+-                  }`).join('')}
++                  `).join('')}
+                 </div>
+ 
+@@ -979,5 +1001,5 @@
+ 
+               </div>
+-            ` : activeSearchTab === 'hotels' ? }`
++            ` : activeSearchTab === 'hotels' ? `
+               <!-- TAB 2: HOTELS SEARCH -->
+               <div class="space-y-4">
+@@ -1015,5 +1037,5 @@
+                 </div>
+               </div>
+-            ` : activeSearchTab === 'packages' ? }`
++            ` : activeSearchTab === 'packages' ? `
+               <!-- TAB 3: HOLIDAY PACKAGES -->
+               <div class="space-y-4">
+@@ -1051,5 +1073,5 @@
+                 </div>
+               </div>
+-            ` : activeSearchTab === 'buses_cabs' ? }`
++            ` : activeSearchTab === 'buses_cabs' ? `
+               <!-- TAB 4: BUSES & CABS -->
+               <div class="space-y-4">
+@@ -1087,5 +1109,5 @@
+                 </div>
+               </div>
+-            }` : `
++            ` : `
+               <!-- TAB 5: TRAINS -->
+               <div class="space-y-4">
+@@ -1153,5 +1175,5 @@
+ 
+         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+-          ${topDestinations.map(dest => }`
++          ${topDestinations.map(dest => `
+             <div 
+               onclick="window.selectDestinationCard('${dest.name}', '${dest.cityFull}')"
+@@ -1247,5 +1269,5 @@
+ 
+         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+-          ${travelThemes.map(theme => }`
++          ${travelThemes.map(theme => `
+             <div 
+               onclick="window.setQuickDestination('${theme.dest}')"
+@@ -1276,5 +1298,5 @@
+            LIVE INTERACTIVE FLIGHT SEARCH RESULTS (YATRA REAL TIME ENGINE)
+            =================================================================== -->
+-      ${(isSearchActive || activeSearchTab === 'flights') ? }`
++      ${(isSearchActive || activeSearchTab === 'flights') ? `
+         <section id="search-results-section" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+           
+@@ -1321,7 +1343,7 @@
+                   <div class="text-[10px] ${f.active ? 'text-red-100' : 'text-slate-400'}">${f.date}</div>
+                   <div class="font-extrabold text-xs sm:text-sm mt-0.5">₹${f.fare.toLocaleString('en-IN')}</div>
+-                  ${f.tag ? }`<span class="inline-block text-[9px] px-1.5 rounded bg-white text-red-600 font-black mt-0.5">${f.tag}</span>` : ''}
+-                </div>
+-              }`).join('')}
++                  ${f.tag ? `<span class="inline-block text-[9px] px-1.5 rounded bg-white text-red-600 font-black mt-0.5">${f.tag}</span>` : ''}
++                </div>
++              `).join('')}
+             </div>
+ 
+@@ -1406,5 +1428,5 @@
+ 
+               </div>
+-            }`).join('')}
++            `).join('')}
+           </div>
+ 
+@@ -1431,5 +1453,5 @@
+ 
+         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+-          ${popularRoutes.map(route => }`
++          ${popularRoutes.map(route => `
+             <div 
+               onclick="window.selectPopularRoute('${route.from}', '${route.to}')"
+
+... (42 more lines)
+
+
+=== DIFF for login_popup.js ===
+--- bak
++++ curr
+@@ -1,8 +1,8 @@
+-﻿import { store } from '../store.js';
++import { store } from '../store.js';
+ import { api } from '../api.js';
+ 
+ /**
+  * Renders the Login / Sign-Up popup modal overlay.
+- * Triggered by window.openLoginPopup('login'|'signup').
++ * Triggered by window.openLoginPopup('login'|'signup', role).
+  * Closed by window.closeLoginPopup().
+  */
+@@ -13,10 +13,17 @@
+ 
+   const demoAccounts = {
+-    traveler:          { email: 'traveler@travora.demo',  pass: 'password123', label: 'Krishna Singh \u2022 Explorer' },
+-    operator:          { email: 'operator@travora.demo',  pass: 'password123', label: 'Aarav Mehta \u2022 Operator' },
+-    business_operator: { email: 'corporate@travora.demo', pass: 'password123', label: 'Vikram Oberoi \u2022 Corporate' },
+-    admin:             { email: 'admin@travora.demo',     pass: 'password123', label: 'Platform Admin \u2022 HQ' }
++    traveler:          { email: 'traveler@travora.demo',  pass: 'password123', label: 'Krishna Singh • Explorer' },
++    operator:          { email: 'operator@travora.demo',  pass: 'password123', label: 'Aarav Mehta • Operator' },
++    business_operator: { email: 'corporate@travora.demo', pass: 'password123', label: 'Vikram Oberoi • Corporate' },
++    admin:             { email: 'admin@travora.demo',     pass: 'password123', label: 'Platform Admin • HQ' }
+   };
+   const demo = demoAccounts[selectedRole] || demoAccounts.traveler;
++
++  const roleTitles = {
++    traveler: 'Traveller Portal',
++    operator: 'Operator Dispatch Hub',
++    business_operator: 'TRAVORA for Business',
++    admin: 'Central Platform Administration'
++  };
+ 
+   const roles = [
+@@ -39,11 +46,18 @@
+             <img src="/static/assets/logo/travora_emblem.png" alt="TRAVORA" style="width:52px;height:52px;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(220,195,170,0.5));"/>
+             <div>
+-              <h2 style="font-size:1.5rem;font-weight:900;letter-spacing:0.12em;color:#F1E2D1;line-height:1;">${authMode === 'signup' ? 'Create Account' : 'Welcome Back'}</h2>
+-              <p style="font-size:0.75rem;color:rgba(220,195,170,0.8);margin-top:0.25rem;">${authMode === 'signup' ? 'Join TRAVORA — Plan Freely, Travel Personally' : 'Sign in to continue your journey'}</p>
++              <div style="display:inline-block;padding:2px 8px;border-radius:999px;background:rgba(241,226,209,0.2);color:#F1E2D1;font-size:0.65rem;font-weight:800;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px;">
++                ${roleTitles[selectedRole] || 'Portal Sign In'}
++              </div>
++              <h2 style="font-size:1.5rem;font-weight:900;letter-spacing:0.12em;color:#F1E2D1;line-height:1.1;">
++                ${authMode === 'signup' ? 'Create Account' : (selectedRole === 'traveler' ? 'Sign In to Continue' : `Sign In to ${roles.find(r=>r.id===selectedRole)?.label} Phase`)}
++              </h2>
++              <p style="font-size:0.75rem;color:rgba(220,195,170,0.8);margin-top:0.25rem;">
++                ${authMode === 'signup' ? 'Join TRAVORA — Plan Freely, Travel Personally' : 'Please log in to explore and operate on the TRAVORA platform.'}
++              </p>
+             </div>
+           </div>
+           <div style="display:flex;gap:0.5rem;margin-top:1.25rem;flex-wrap:wrap;position:relative;z-index:1;">
+-            ${roles.map(r => }`
+-              <button onclick="store.setState({authRole:'${r.id}'})" style="display:flex;align-items:center;gap:0.35rem;padding:0.4rem 0.85rem;border-radius:9999px;font-size:0.7rem;font-weight:700;cursor:pointer;transition:all 0.2s;border:1.5px solid ${selectedRole === r.id ? '#F1E2D1' : 'rgba(241,226,209,0.25)'};background:${selectedRole === r.id ? 'rgba(241,226,209,0.2)' : 'transparent'};color:${selectedRole === r.id ? '#F1E2D1' : 'rgba(241,226,209,0.6)'};">
++            ${roles.map(r => `
++              <button type="button" onclick="window.selectPopupRole('${r.id}')" style="display:flex;align-items:center;gap:0.35rem;padding:0.4rem 0.85rem;border-radius:9999px;font-size:0.7rem;font-weight:700;cursor:pointer;transition:all 0.2s;border:1.5px solid ${selectedRole === r.id ? '#F1E2D1' : 'rgba(241,226,209,0.25)'};background:${selectedRole === r.id ? 'rgba(241,226,209,0.25)' : 'transparent'};color:${selectedRole === r.id ? '#F1E2D1' : 'rgba(241,226,209,0.6)'};">
+                 <i data-lucide="${r.icon}" style="width:11px;height:11px;"></i>
+                 <span>${r.label}</span>
+@@ -67,18 +81,20 @@
+               <div>
+                 <label style="display:block;font-size:0.7rem;font-weight:700;color:#541A1A;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem;">Password</label>
+-                <input type="password" name="password" id="popup-password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" value="${demo.pass}" style="width:100%;padding:0.65rem 0.85rem;border-radius:0.65rem;border:1.5px solid #DCC3AA;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;" required/>
++                <input type="password" name="password" id="popup-password" placeholder="••••••••" value="${demo.pass}" style="width:100%;padding:0.65rem 0.85rem;border-radius:0.65rem;border:1.5px solid #DCC3AA;font-size:0.85rem;outline:none;background:#fff;box-sizing:border-box;" required/>
+               </div>
+               <button type="submit" id="popup-submit-btn" style="width:100%;padding:0.75rem;border-radius:0.75rem;background:linear-gradient(135deg,#810B38,#541A1A);color:#F1E2D1;font-weight:800;font-size:0.85rem;cursor:pointer;border:none;letter-spacing:0.04em;box-shadow:0 6px 20px rgba(129,11,56,0.35);">
+-                ${authMode === 'signup' ? '\u2726 Create My Account' : '\u2192 Continue to TRAVORA'}
++                ${authMode === 'signup' ? '✦ Create My Account' : `→ Sign In as ${roles.find(r=>r.id===selectedRole)?.label || 'User'}`}
+               </button>
+             </form>
++            
+             <div style="display:flex;align-items:center;gap:0.75rem;margin:0.85rem 0;">
+               <div style="flex:1;height:1px;background:#DCC3AA;"></div>
+-              <span style="font-size:0.68rem;color:#DCC3AA;font-weight:600;">or use demo</span>
++              <span style="font-size:0.68rem;color:#810B38;font-weight:800;text-transform:uppercase;">or instant 1-click</span>
+               <div style="flex:1;height:1px;background:#DCC3AA;"></div>
+             </div>
+-            <button onclick="window.fillPopupDemoCredentials()" style="width:100%;padding:0.6rem;border-radius:0.75rem;border:1.5px dashed #DCC3AA;background:#FDF6F0;color:#810B38;font-size:0.72rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+-              <i data-lucide="zap" style="width:12px;height:12px;"></i>
+-              Demo: ${demo.label}
++
++            <button type="button" onclick="window.quickDemoLogin('${selectedRole}')" style="width:100%;padding:0.7rem;border-radius:0.75rem;background:linear-gradient(135deg,#f59e0b,#ea2330);color:#ffffff;font-size:0.75rem;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:0.5rem;border:none;box-shadow:0 4px 14px rgba(234,35,48,0.25);">
++              <i data-lucide="zap" style="width:13px;height:13px;"></i>
++              <span>⚡ 1-Click Instant Demo Login (${demo.label})</span>
+             </button>
+           </div>
+@@ -89,16 +105,15 @@
+                 <i data-lucide="sparkles" style="width:16px;height:16px;color:#F1E2D1;"></i>
+               </div>
+-              <h3 style="font-size:0.95rem;font-weight:800;color:#1A0707;margin-bottom:0.75rem;">Why TRAVORA?</h3>
++              <h3 style="font-size:0.95rem;font-weight:800;color:#1A0707;margin-bottom:0.75rem;">Platform Access</h3>
+               <div style="display:flex;flex-direction:column;gap:0.6rem;">
+-                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">&#x2708;&#xFE0F;</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;">Flights, Hotels, Trains, Buses &amp; Cabs</span></div>
+-                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">&#x1F916;</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;">AI-powered trip planner within budget</span></div>
+-                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">&#x1F5D3;&#xFE0F;</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;">Full schedule from booking to checkout</span></div>
+-                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">&#x26A1;</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;">Real-time disruption handling</span></div>
+-                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">&#x1F6E1;&#xFE0F;</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;">100% verified operators &amp; zero hidden fees</span></div>
++                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">✈️</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;"><strong>Traveller:</strong> Flights, Hotels, Dynamic Itineraries & Live Tracker</span></div>
++                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">🏢</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;"><strong>Operator:</strong> Fleet Dispatch Hub, Tour Roster & Operations Alerts</span></div>
++                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">💼</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;"><strong>Corporate:</strong> TRAVORA for Business, Delegations & Cost Center Policy</span></div>
++                <div style="display:flex;align-items:flex-start;gap:0.5rem;"><span style="font-size:0.85rem;">🛡️</span><span style="font-size:0.72rem;color:#541A1A;line-height:1.5;"><strong>Admin:</strong> 802 Districts Telemetry, 500+ Operators & Audit Logs</span></div>
+               </div>
+             </div>
+             <div style="margin-top:1rem;padding:0.85rem;background:rgba(129,11,56,0.08);border-radius:0.75rem;border:1px solid rgba(129,11,56,0.15);">
+-              <p style="font-size:0.68rem;color:#810B38;font-weight:700;margin-bottom:0.2rem;">&#x2726; DEMO CREDENTIALS PRE-FILLED</p>
+-              <p style="font-size:0.65rem;color:#541A1A;">Click Continue to explore instantly!</p>
++              <p style="font-size:0.68rem;color:#810B38;font-weight:700;margin-bottom:0.2rem;">✦ DEMO CREDENTIALS LOADED</p>
++              <p style="font-size:0.65rem;color:#541A1A;">Click "⚡ 1-Click Instant Demo Login" to enter immediately!</p>
+             </div>
+           </div>
+@@ -116,4 +131,57 @@
+ }
+ 
++window.selectPopupRole = function (role) {
++  const demos = {
++    traveler:          { email: 'traveler@travora.demo',  pass: 'password123' },
++    operator:          { email: 'operator@travora.demo',  pass: 'password123' },
++    business_operator: { email: 'corporate@travora.demo', pass: 'password123' },
++    admin:             { email: 'admin@travora.demo',     pass: 'password123' }
++  };
++  const d = demos[role] || demos.traveler;
++  store.setState({ authRole: role });
++  setTimeout(() => {
++    const emailEl = document.getElementById('popup-email');
++    const passEl  = document.getElementById('popup-password');
++    if (emailEl) emailEl.value = d.email;
++    if (passEl)  passEl.value  = d.pass;
++  }, 50);
++};
++
++window.quickDemoLogin = async function (role) {
++  const demos = {
++    traveler:          { email: 'traveler@travora.demo',  pass: 'password123' },
++    operator:          { email: 'operator@travora.demo',  pass: 'password123' },
++    business_operator: { email: 'corporate@travora.demo', pass: 'password123' },
++    admin:             { email: 'admin@travora.demo',     pass: 'password123' }
++  };
++  const targetRole = role || store.getState().authRole || 'traveler';
++  const d = demos[targetRole] || demos.traveler;
++  
++  store.addToast(`Signing into ${targetRole.replace('_', ' ')} phase...`, 'info', 2000);
++  try {
++    const res = await api.login({ email: d.email, password: d.pass, role: targetRole });
++    const user = res.user || res;
++    localStorage.setItem('travora_user', JSON.stringify(user));
++
++    const initView = user.role === 'admin' ? 'admin_dash'
++      : user.role === 'business_operator' ? 'business_operator'
++      : user.role === 'operator' ? 'operator_dash'
++      : 'landing';
++
++    store.setState({
++      isAuthenticated: true,
++      user,
++      activeRole: user.role,
++      isLoginPopupOpen: false,
++      currentView: initView,
++      authMode: 'login'
++    });
++    store.addToast(`Welcome back, ${user.name || user.email}!`, 'success', 3500);
++    await window.navigateView(initView);
++  } catch (err) {
++    store.addToast('Login error: ' + (err.message || 'Invalid credentials'), 'critical');
++  }
++};
++
+ window.handlePopupLoginSubmit = async function (e) {
+   e.preventDefault();
+@@ -126,5 +194,8 @@
+   const role    = state.authRole || 'traveler';
+ 
+-  if (!email || !password) { store.addToast('Please enter email and password.', 'critical'); return; }
++  if (!email || !password) {
++    store.addToast('Please enter email and password.', 'critical');
++    return;
++  }
+ 
+   const btn = document.getElementById('popup-submit-btn');
+@@ -141,9 +212,17 @@
+       : 'landing';
+ 
+-    store.setState({ isAuthenticated: true, user, isLoginPopupOpen: false, currentView: initView, authMode: 'login' });
+-    store.addToast('Welcome back, ' + (user.name || user.email) + '! Your journey continues. \u2708\uFE0F', 'success', 4000);
++    store.setState({
++      isAuthenticated: true,
++      user,
++      activeRole: user.role,
++      isLoginPopupOpen: false,
++      currentView: initView,
++      authMode: 'login'
++    });
++    store.addToast('Welcome back, ' + (user.name || user.email) + '! Your journey continues. ✈️', 'success', 4000);
++    await window.navigateView(initView);
+   } catch (err) {
+     store.addToast('Login failed: ' + (err.message || 'Invalid credentials'), 'critical');
+-    if (btn) { btn.disabled = false; btn.textContent = '\u2192 Continue to TRAVORA'; }
++    if (btn) { btn.disabled = false; btn.textContent = `→ Sign In as ${role}`; }
+   }
+ };
+@@ -151,15 +230,5 @@
+ window.fillPopupDemoCredentials = function () {
+
+... (17 more lines)
+
+
+=== DIFF for navbar.js ===
+--- bak
++++ curr
+@@ -1,8 +1,24 @@
+ import { store } from '../store.js';
++
++// Curated Popular Indian Destinations for Instant Search Palette
++const POPULAR_DISTRICTS = [
++  { name: 'Goa', state: 'Goa', region: 'West India', tag: 'Beach & Coastal', image: 'https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?w=400&q=80', desc: 'Pristine beaches, Portuguese forts, watersports & vibrant nightlife' },
++  { name: 'Leh Ladakh', state: 'Ladakh', region: 'North India', tag: 'Himalayan', image: 'https://images.unsplash.com/photo-1581793745862-99fde7fa73d2?w=400&q=80', desc: 'High-altitude passes, Pangong Tso, Nubra valley & monasteries' },
++  { name: 'Varanasi', state: 'Uttar Pradesh', region: 'North India', tag: 'Spiritual', image: 'https://images.unsplash.com/photo-1561361513-2d000a50f0dc?w=400&q=80', desc: 'Ancient Ganga ghats, sacred evening Aarti & Banarasi silk heritage' },
++  { name: 'Jaipur', state: 'Rajasthan', region: 'North India', tag: 'Heritage', image: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=400&q=80', desc: 'Amer Fort, Hawa Mahal, royal Rajputana palaces & bazaars' },
++  { name: 'Munnar', state: 'Kerala', region: 'South India', tag: 'Nature', image: 'https://images.unsplash.com/photo-1593693397690-362cb9666fc2?w=400&q=80', desc: 'Rolling emerald tea plantations, waterfalls & Western Ghats mist' },
++  { name: 'Srinagar', state: 'Jammu & Kashmir', region: 'North India', tag: 'Himalayan', image: 'https://images.unsplash.com/photo-1598091383021-15ddea10925d?w=400&q=80', desc: 'Dal Lake shikaras, houseboats, Mughal gardens & snowy peaks' },
++  { name: 'Hampi', state: 'Karnataka', region: 'South India', tag: 'Heritage', image: 'https://images.unsplash.com/photo-1600100397608-f010f443b749?w=400&q=80', desc: 'Vijayanagara empire stone ruins, ancient temples & boulder trails' },
++  { name: 'Udaipur', state: 'Rajasthan', region: 'North India', tag: 'Heritage', image: 'https://images.unsplash.com/photo-1615836245337-f5b9b2303f10?w=400&q=80', desc: 'City of Lakes, grand City Palace & romantic royal sunset cruises' },
++  { name: 'Darjeeling', state: 'West Bengal', region: 'East India', tag: 'Himalayan', image: 'https://images.unsplash.com/photo-1544735716-392fe2489ffa?w=400&q=80', desc: 'UNESCO Himalayan Toy Train, Tiger Hill sunrise & premier tea estates' },
++  { name: 'Rishikesh', state: 'Uttarakhand', region: 'North India', tag: 'Adventure', image: 'https://images.unsplash.com/photo-1592635196078-9fe3d54f2377?w=400&q=80', desc: 'Yoga capital of the world, white water river rafting & Himalayan peace' },
++  { name: 'Kochi (Cochin)', state: 'Kerala', region: 'South India', tag: 'Beach & Coastal', image: 'https://images.unsplash.com/photo-1584282479904-4c47fb9dc873?w=400&q=80', desc: 'Chinese fishing nets, spice spice markets & historic Fort Kochi' },
++  { name: 'Shimla & Manali', state: 'Himachal Pradesh', region: 'North India', tag: 'Himalayan', image: 'https://images.unsplash.com/photo-1626621341517-bbf3d9990a23?w=400&q=80', desc: 'Snow-capped Rohtang Pass, apple orchards & colonial pine ridges' }
++];
+ 
+ export function renderNavbar() {
+   const state = store.getState();
+-  const user = state.user || { name: 'Traveler User', email: 'traveler@travora.demo', role: 'traveler' };
+-  const role = user.role || state.activeRole || 'traveler';
++  const user = state.user || { name: 'Krishna Singh', email: 'traveler@travora.demo', role: 'traveler' };
++  const role = state.activeRole || (user ? user.role : 'traveler');
+   const isOperator = role === 'operator';
+   const isBusiness = role === 'business_operator';
+@@ -11,13 +27,17 @@
+   const unreadCount = (state.notifications || []).filter(n => !n.is_read).length;
+   const isMobileNavOpen = !!window.isMobileNavOpen;
+-
+-  // Role badges & styling (verified static indicator, NO role changing dropdown)
++  const isCommandSearchOpen = !!window.isCommandSearchOpen;
++  const isProfileDropdownOpen = !!window.isProfileDropdownOpen;
++  const currentView = state.currentView;
++  const landingSearchTab = window.landingSearchTab || state.landingSearchTab || 'flights';
++
++  // Role badges & styling configuration
+   const roleConfig = {
+     traveler: {
+       label: 'VERIFIED TRAVELLER',
+-      color: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',
+-      dot: 'bg-[#ea2330]',
++      color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
++      dot: 'bg-emerald-500',
+       icon: 'compass',
+-      homeView: 'dashboard'
++      homeView: 'landing'
+     },
+     operator: {
+@@ -36,5 +56,5 @@
+     },
+     admin: {
+-      label: 'ADMINISTRATOR',
++      label: 'PLATFORM ADMIN',
+       color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30',
+       dot: 'bg-purple-500',
+@@ -44,266 +64,340 @@
+   }[role] || {
+     label: 'TRAVELLER',
+-    color: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',
+-    dot: 'bg-[#ea2330]',
++    color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
++    dot: 'bg-emerald-500',
+     icon: 'compass',
+-    homeView: 'dashboard'
++    homeView: 'landing'
+   };
+ 
+-  const userName = user.name || 'User';
+-  const userInitials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U';
++  const userName = user.name || 'Krishna Singh';
++  const userInitials = userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'KS';
+ 
+   return `
+-    <header class="sticky top-0 z-40 bg-white/95 dark:bg-slate-950/95 backdrop-blur-2xl border-b border-slate-200/80 dark:border-slate-800/80 shadow-md transition-all duration-300">
++    <header class="sticky top-0 z-40 bg-white/95 dark:bg-[#120206]/95 backdrop-blur-2xl border-b border-slate-200/80 dark:border-[#380715]/80 shadow-sm transition-all duration-300">
+       
+-      <!-- YATRA-STYLE TOP MICRO BAR IN DARK RED -->
+-      <div class="hidden md:block bg-[#260406] text-slate-200 text-[11px] py-1 border-b border-[#450a0f]">
+-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+-          <div class="flex items-center space-x-4">
+-            <span class="text-white font-extrabold uppercase tracking-wider flex items-center space-x-1">
+-              <span class="w-1.5 h-1.5 rounded-full bg-[#ea2330] inline-block"></span>
+-              <span>India's Leading Travel & Tour Platform</span>
++      <!-- ===================================================================
++           LAYER 1: LUXURY TOP MICRO UTILITY BAR (WINE-SLATE GRADIENT)
++           =================================================================== -->
++      <div class="hidden lg:block bg-gradient-to-r from-[#170307] via-[#24050b] to-[#170307] text-slate-300 text-[11px] py-1.5 px-4 sm:px-6 lg:px-8 border-b border-[#4d0c1c]/60 shadow-inner">
++        <div class="max-w-7xl mx-auto flex items-center justify-between">
++          
++          <!-- LEFT: Official Brand Indicator & Segmented Portal Selector -->
++          <div class="flex items-center space-x-3">
++            <div class="flex items-center space-x-2 pr-3 border-r border-[#4d0c1c]">
++              <span class="relative flex h-2 w-2">
++                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
++                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
++              </span>
++              <span class="text-white font-black tracking-wider uppercase text-[10.5px]">
++                TRAVORA Official
++              </span>
++              <span class="text-slate-400 font-medium text-[10px]">India's #1 Dynamic Tour Platform</span>
++            </div>
++
++            <!-- Segmented Multi-Portal Switcher Pills -->
++            <div class="flex items-center bg-[#0d0103]/80 rounded-full p-0.5 border border-[#541A1A]/60 shadow-sm">
++              <button 
++                data-phase-btn="traveler" 
++                onclick="window.openPhase('traveler')" 
++                class="px-2.5 py-0.5 rounded-full flex items-center space-x-1 transition text-[10.5px] font-bold ${role === 'traveler' ? 'bg-[#810B38] text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
++                title="Switch to Traveller View">
++                <i data-lucide="compass" class="w-3 h-3 text-emerald-400"></i>
++                <span>Traveller</span>
++              </button>
++
++              <button 
++                data-phase-btn="operator" 
++                onclick="window.openPhase('operator')" 
++                class="px-2.5 py-0.5 rounded-full flex items-center space-x-1 transition text-[10.5px] font-bold ${role === 'operator' ? 'bg-[#810B38] text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
++                title="Switch to Tour Operator Portal">
++                <i data-lucide="building-2" class="w-3 h-3 text-amber-400"></i>
++                <span>Operator Portal</span>
++              </button>
++
++              <button 
++                data-phase-btn="business_operator" 
++                onclick="window.openPhase('business_operator')" 
++                class="px-2.5 py-0.5 rounded-full flex items-center space-x-1 transition text-[10.5px] font-bold ${role === 'business_operator' ? 'bg-[#810B38] text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
++                title="Switch to Corporate Business Portal">
++                <i data-lucide="briefcase" class="w-3 h-3 text-blue-400"></i>
++                <span>TRAVORA Business</span>
++              </button>
++
++              <button 
++                data-phase-btn="admin" 
++                onclick="window.openPhase('admin')" 
++                class="px-2.5 py-0.5 rounded-full flex items-center space-x-1 transition text-[10.5px] font-bold ${role === 'admin' ? 'bg-[#810B38] text-white shadow-sm' : 'text-slate-400 hover:text-white'}"
++                title="Switch to Platform Admin Console">
++                <i data-lucide="shield-check" class="w-3 h-3 text-purple-400"></i>
++                <span>Admin</span>
++              </button>
++            </div>
++          </div>
++
++          <!-- RIGHT: Prime Perk Badge, 24x7 Helpline, Currency & My Bookings -->
++          <div class="flex items-center space-x-3.5">
++            
++            <!-- Shimmering TRAVORA Prime Badge -->
++            <div 
++              onclick="window.switchYatraServiceTab('flights')" 
++              class="cursor-pointer flex items-center space-x-1.5 text-amber-300 font-extrabold px-2.5 py-0.5 rounded-full border border-amber-500/30 prime-shimmer-badge hover:border-amber-400 transition"
++              title="TRAVORA Prime: Zero Convenience Fees on Flights & Stays">
++              <i data-lucide="crown" class="w-3 h-3 text-amber-400"></i>
++              <span class="text-[10.5px] tracking-tight">TRAVORA Prime • Zero Convenience Fees</span>
++            </div>
++
++            <span class="opacity-25">|</span>
++
++            <!-- Concierge Helpline -->
++            <a 
++              href="tel:+911244180810" 
++              class="flex items-center space-x-1 text-slate-300 hover:text-white transition group"
++              title="24×7 Emergency Concierge & Booking Support">
++              <i data-lucide="phone-call" class="w-3 h-3 text-[#ea2330] group-hover:scale-110 transition"></i>
++              <span class="text-slate-400 group-hover:text-slate-200">24×7 Concierge:</span>
++              <strong class="text-white font-mono font-bold">+91 124 4180810</strong>
++            </a>
++
++            <span class="opacity-25">|</span>
++
++            <!-- Quick My Bookings Link -->
++            <button 
++              onclick="window.navigateView('itinerary')" 
++              class="flex items-center space-x-1.5 text-slate-200 hover:text-white font-bold transition hover:underline"
++              title="Access your booked itineraries, flight e-tickets and vouchers">
++              <i data-lucide="ticket" class="w-3 h-3 text-emerald-400"></i>
++              <span>My Bookings</span>
++            </button>
++
++            <span class="opacity-25">|</span>
++
++            <!-- Currency & Country Indicator -->
++            <span class="text-slate-400 font-mono text-[10px] bg-white/5 px-2 py-0.5 rounded border border-white/10 flex items-center space-x-1">
++              <span>🇮🇳</span>
++              <span class="font-bold text-slate-200">INR (₹)</span>
+             </span>
+-            <span class="opacity-30">|</span>
+-            <button onclick="window.navigateView('business_operator')" class="hover:text-white transition flex items-center space-x-1 text-slate-300">
+-              <i data-lucide="briefcase" class="w-3 h-3 text-red-300"></i>
+-              <span>TRAVORA for Business</span>
+-            </button>
+-            <span class="opacity-30">|</span>
+-            <button onclick="window.navigateView('operator_dash')" class="hover:text-white transition flex items-center space-x-1 text-slate-300">
+-              <i data-lucide="building-2" class="w-3 h-3 text-amber-300"></i>
+-              <span>Operator Portal</span>
+-            </button>
+-            <span class="opacity-30">|</span>
+-            <span class="text-amber-300 font-bold flex items-center space-x-1">
+
+... (1067 more lines)
+
+
+=== DIFF for operator_dashboard.js ===
+--- bak
++++ curr
+@@ -68,5 +68,5 @@
+ 
+       <!-- CRITICAL OPERATOR ALERT: CONTACT TRAVELLER (Prompt Requirement 5) -->
+-      ${(state.urgentTravellerIssue || (state.notifications || []).find(n => n.role === 'operator' && !n.is_read && n.message && n.message.toLowerCase().includes('contact traveller'))) ? }`
++      ${(state.urgentTravellerIssue || (state.notifications || []).find(n => n.role === 'operator' && !n.is_read && n.message && n.message.toLowerCase().includes('contact traveller'))) ? `
+         <div class="p-5 rounded-3xl bg-red-500/10 border-2 border-red-500 shadow-xl space-y-3">
+           <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+@@ -85,5 +85,5 @@
+                 </div>
+                 <h3 class="text-base sm:text-lg font-black text-slate-900 dark:text-white mt-0.5">
+-                  ${(state.urgentTravellerIssue && state.urgentTravellerIssue.customer_name) ? `Traveller ${state.urgentTravellerIssue.customer_name} (Tour #${state.urgentTravellerIssue.tour_code || 'TR1024'}) reported an issue}` : 'Traveller On-Ground Disruption Alert'}
++                  ${(state.urgentTravellerIssue && state.urgentTravellerIssue.customer_name) ? `Traveller ${state.urgentTravellerIssue.customer_name} (Tour #${state.urgentTravellerIssue.tour_code || 'TR1024'}) reported an issue` : 'Traveller On-Ground Disruption Alert'}
+                 </h3>
+                 <p class="text-xs text-slate-600 dark:text-slate-300">
+@@ -182,5 +182,5 @@
+ 
+       <!-- TAB 1: FLEET TOUR ROSTER -->
+-      ${activeTab === 'roster' ? }`
++      ${activeTab === 'roster' ? `
+         <div class="surface-card rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+@@ -245,5 +245,5 @@
+                     </td>
+                   </tr>
+-                }`).join('')}
++                `).join('')}
+               </tbody>
+             </table>
+@@ -253,5 +253,5 @@
+ 
+       <!-- TAB 2: OPERATOR PACKAGE BUILDER -->
+-      ${activeTab === 'packages' ? }`
++      ${activeTab === 'packages' ? `
+         <div class="surface-card rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+@@ -297,5 +297,5 @@
+                 </div>
+               </div>
+-            }`).join('')}
++            `).join('')}
+           </div>
+         </div>
+@@ -303,5 +303,5 @@
+ 
+       <!-- TAB 3: ADDITIONAL PLACE REQUESTS -->
+-      ${activeTab === 'requests' ? }`
++      ${activeTab === 'requests' ? `
+         <div class="surface-card rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl space-y-4">
+           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
+@@ -320,7 +320,7 @@
+               No pending place requests from travellers.
+             </div>
+-          }` : `
++          ` : `
+             <div class="space-y-3">
+-              ${placeRequests.map(req => }`
++              ${placeRequests.map(req => `
+                 <div class="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-3">
+                   <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+@@ -341,5 +341,5 @@
+ 
+                   <div class="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl">
+-                    ${req.notes ? `Traveller Notes: "${req.notes}"}` : 'Standard traveler additional landmark request.'}
++                    ${req.notes ? `Traveller Notes: "${req.notes}"` : 'Standard traveler additional landmark request.'}
+                   </div>
+ 
+
+
+=== DIFF for operator_detail_modal.js ===
+--- bak
++++ curr
+@@ -85,5 +85,5 @@
+             <span class="font-bold text-slate-700 dark:text-slate-300">Primary Operating Destinations:</span>
+             <div class="flex flex-wrap gap-1.5 pt-0.5">
+-              ${(Array.isArray(operator.operating_destinations) ? operator.operating_destinations : (operator.operating_destinations || 'Goa, Jaipur').split(',')).map(d => }`
++              ${(Array.isArray(operator.operating_destinations) ? operator.operating_destinations : (operator.operating_destinations || 'Goa, Jaipur').split(',')).map(d => `
+                 <span class="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-medium flex items-center space-x-1">
+                   <i data-lucide="map-pin" class="w-3 h-3 text-teal-500"></i>
+
+
+=== DIFF for operator_tour_detail.js ===
+
+
+=== DIFF for profile_modal.js ===
+--- bak
++++ curr
+@@ -166,5 +166,5 @@
+         <div class="p-6 sm:p-8 space-y-6 overflow-y-auto flex-1 text-xs">
+           
+-          ${activeTab === 'overview' ? }`
++          ${activeTab === 'overview' ? `
+             <!-- TAB 0: ACCOUNT OVERVIEW & IDENTITY -->
+             <div class="space-y-5">
+@@ -238,5 +238,5 @@
+ 
+             </div>
+-          ` : activeTab === 'personal' ? }`
++          ` : activeTab === 'personal' ? `
+             <!-- TAB 1: PERSONAL & PREFERENCES FORM -->
+             <form onsubmit="window.handleSaveProfile(event)" class="space-y-4">
+@@ -323,5 +323,5 @@
+ 
+             </form>
+-          ` : activeTab === 'bookings' ? }`
++          ` : activeTab === 'bookings' ? `
+             <!-- TAB 2: VERIFIED BOOKINGS & OFFICIAL RECEIPTS -->
+             <div class="space-y-4">
+@@ -342,5 +342,5 @@
+                     <div class="space-y-1">
+                       <div class="flex items-center space-x-2">
+-                        <span class="font-mono font-black text-xs text-slate-900 dark:text-white">${t.code || }`TRV-BK-${9020 + idx}`}</span>
++                        <span class="font-mono font-black text-xs text-slate-900 dark:text-white">${t.code || `TRV-BK-${9020 + idx}`}</span>
+                         <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${t.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20' : 'bg-teal-500/10 text-teal-600 border border-teal-500/20'}">
+                           ${t.status ? t.status.toUpperCase() : 'CONFIRMED & DISPATCHED'}
+@@ -365,5 +365,5 @@
+                       <button 
+                         type="button" 
+-                        onclick="window.closeProfileModal(); window.openBookingReceiptModal('${t.code || }`TRV-BK-${9020 + idx}`}')" 
++                        onclick="window.closeProfileModal(); window.openBookingReceiptModal('${t.code || `TRV-BK-${9020 + idx}`}')" 
+                         class="px-3.5 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold transition flex items-center space-x-1 text-xs shadow-md shadow-teal-500/20">
+                         <i data-lucide="receipt" class="w-3.5 h-3.5"></i>
+@@ -372,5 +372,5 @@
+                     </div>
+                   </div>
+-                }`).join('') : `
++                `).join('') : `
+                   <div class="p-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                     <div class="space-y-1">
+
+
+=== DIFF for traveler_dashboard.js ===
+--- bak
++++ curr
+@@ -46,5 +46,5 @@
+             Featured / Active Itinerary
+           </h2>
+-          ${activeTour ? }`
++          ${activeTour ? `
+             <span class="text-xs text-teal-600 dark:text-teal-400 font-bold cursor-pointer hover:underline" onclick="window.navigateView('itinerary', { tour_id: ${activeTour.id} })">
+               Manage Full Schedule &rarr;
+@@ -53,5 +53,5 @@
+         </div>
+ 
+-        ${activeTour ? }`
++        ${activeTour ? `
+           <div class="p-6 sm:p-8 rounded-3xl surface-card relative overflow-hidden group border border-slate-200 dark:border-slate-800 shadow-xl">
+             <!-- Ambient Background Glow -->
+@@ -143,5 +143,5 @@
+             </div>
+           </div>
+-        ` : }`
++        ` : `
+           <div class="p-8 sm:p-12 rounded-3xl surface-card text-center border-2 border-dashed border-slate-300 dark:border-slate-800 space-y-4 shadow-sm">
+             <div class="w-14 h-14 rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center mx-auto shadow-inner">
+@@ -165,5 +165,5 @@
+ 
+       <!-- MY PLANNED TOURS LIST SECTION (IF MULTIPLE) -->
+-      ${userTours.length > 1 ? }`
++      ${userTours.length > 1 ? `
+         <div class="space-y-4">
+           <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">
+@@ -225,5 +225,5 @@
+ 
+         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+-          ${destinations.map(d => }`
++          ${destinations.map(d => `
+             <div class="surface-card rounded-2xl overflow-hidden group hover:-translate-y-1 transition duration-200 flex flex-col justify-between border border-slate-200 dark:border-slate-800 shadow-md">
+               
+
+
+=== DIFF for trip_planner.js ===
+--- bak
++++ curr
+@@ -238,8 +238,8 @@
+                   <div class="text-lg sm:text-xl font-black text-slate-900 dark:text-white flex items-center space-x-2 mt-0.5">
+                     <span>${currentDest}</span>
+-                    ${window.plannerState.selectedDistrict && window.plannerState.selectedDistrict.state ? }`<span class="text-sm font-semibold text-slate-500 dark:text-slate-400">(${window.plannerState.selectedDistrict.state})</span>` : ''}
++                    ${window.plannerState.selectedDistrict && window.plannerState.selectedDistrict.state ? `<span class="text-sm font-semibold text-slate-500 dark:text-slate-400">(${window.plannerState.selectedDistrict.state})</span>` : ''}
+                   </div>
+                   <p class="text-xs text-slate-500 dark:text-slate-400">
+-                    ${window.plannerState.selectedDistrict && window.plannerState.selectedDistrict.terrain ? }`${window.plannerState.selectedDistrict.terrain} - Season: ${window.plannerState.selectedDistrict.popular_season || 'Year-round'}` : 'Dynamic AI routing with real-time on-ground tour operator pairing'}
++                    ${window.plannerState.selectedDistrict && window.plannerState.selectedDistrict.terrain ? `${window.plannerState.selectedDistrict.terrain} - Season: ${window.plannerState.selectedDistrict.popular_season || 'Year-round'}` : 'Dynamic AI routing with real-time on-ground tour operator pairing'}
+                   </p>
+                 </div>
+@@ -300,5 +300,5 @@
+ 
+             <!-- EXPANDABLE 802 DISTRICTS DIRECTORY SEARCH -->
+-            ${window.plannerState.isDistrictSelectorOpen ? }`
++            ${window.plannerState.isDistrictSelectorOpen ? `
+               <div class="p-5 sm:p-6 rounded-3xl bg-slate-50 dark:bg-slate-950 border-2 border-teal-500/30 space-y-4 shadow-xl">
+                 
+@@ -418,5 +418,5 @@
+                         </div>
+                       </div>
+-                    }`).join('')
++                    `).join('')
+                     : `
+                       ${[
+@@ -511,5 +511,5 @@
+ 
+             <!-- DYNAMIC FESTIVAL INTELLIGENCE ALERT BANNER -->
+-            ${detectedFestivals.length > 0 ? }`
++            ${detectedFestivals.length > 0 ? `
+               <div class="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-teal-500/15 border border-amber-500/30 space-y-2">
+                 <div class="flex items-center justify-between">
+@@ -597,5 +597,5 @@
+ 
+             <!-- SENSED STYLE BREAKDOWN -->
+-            ${sensedData && sensedData.style_breakdown ? }`
++            ${sensedData && sensedData.style_breakdown ? `
+               <div class="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+                 <div class="flex items-center justify-between text-[11px]">
+@@ -614,5 +614,5 @@
+                       <span class="text-amber-500 font-extrabold">${pct}</span>
+                     </span>
+-                  }`).join('')}
++                  `).join('')}
+                 </div>
+               </div>
+@@ -627,5 +627,5 @@
+                 ${landmarks.map(lm => {
+         const isSelected = window.plannerState.selectedPlaces.includes(lm.name);
+-        return }`
++        return `
+                     <button 
+                       type="button" 
+@@ -666,5 +666,5 @@
+               </div>
+ 
+-              ${window.plannerState.customPlaces.length > 0 ? }`
++              ${window.plannerState.customPlaces.length > 0 ? `
+                 <div class="flex flex-wrap gap-1.5 mt-1">
+                   ${window.plannerState.customPlaces.map((cp, idx) => `
+@@ -673,5 +673,5 @@
+                       <button type="button" onclick="window.removeCustomPlace(${idx})" class="hover:text-red-500 font-bold ml-1.5">×</button>
+                     </span>
+-                  }`).join('')}
++                  `).join('')}
+                 </div>
+               ` : ''}
+@@ -679,5 +679,5 @@
+ 
+             <!-- PERSONALIZED TIPS -->
+-            ${sensedData && sensedData.personalized_tips && sensedData.personalized_tips.length > 0 ? }`
++            ${sensedData && sensedData.personalized_tips && sensedData.personalized_tips.length > 0 ? `
+               <div class="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-teal-500/30 shadow-sm space-y-2.5">
+                 <div class="flex items-center justify-between">
+@@ -702,5 +702,5 @@
+                       </p>
+                     </div>
+-                  }`).join('')}
++                  `).join('')}
+                 </div>
+               </div>
+@@ -735,5 +735,5 @@
+ 
+             <!-- ACTIVE OPERATOR CARD -->
+-            ${activeOperator ? }`
++            ${activeOperator ? `
+               <div class="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border-2 ${isCustomUserChoice ? 'border-amber-500 shadow-md' : 'border-teal-500/80 shadow-lg shadow-teal-500/10'} space-y-3.5 transition">
+                 
+@@ -795,5 +795,5 @@
+                     ${(activeOperator.specialties || ['Beach', 'Adventure']).map(s => `
+                       <span class="px-2 py-0.5 rounded bg-teal-500/10 text-teal-600 dark:text-teal-400 font-medium text-[10px]">${s}</span>
+-                    }`).join('')}
++                    `).join('')}
+                   </div>
+ 
+@@ -808,5 +808,5 @@
+                         <span>Reset to AI Pick</span>
+                       </button>
+-                    }` : ''}
++                    ` : ''}
+                     <button 
+                       type="button" 
+@@ -830,5 +830,5 @@
+ 
+             <!-- EXPANDABLE OPERATOR DRAWER -->
+-            ${window.plannerState.isOperatorsDrawerOpen ? }`
++            ${window.plannerState.isOperatorsDrawerOpen ? `
+               <div class="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3.5">
+                 
+@@ -891,5 +891,5 @@
+ 
+                         <div class="flex flex-wrap gap-1 text-[9px] pt-1">
+-                          ${(op.specialties || []).slice(0, 3).map(s => }`
++                          ${(op.specialties || []).slice(0, 3).map(s => `
+                             <span class="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">${s}</span>
+                           `).join('')}
+
+
+=== DIFF for trip_tracker.js ===
+--- bak
++++ curr
+@@ -170,5 +170,5 @@
+         <div class="flex flex-wrap items-center gap-2.5 shrink-0">
+           
+-          ${(state.tours && state.tours.length > 1) ? }`
++          ${(state.tours && state.tours.length > 1) ? `
+             <select 
+               onchange="window.switchTrackerTour(this.value)"
+@@ -430,5 +430,5 @@
+             const isUpcoming = idx > activeIdx;
+ 
+-            return }`
++            return `
+               <div 
+                 onclick="window.selectSimulatedMilestone(${idx})"
+
+
+=== DIFF for vendor_management.js ===
